@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hw12-health
+  labels:
+    app: hw12-health
+spec:
+  type: ClusterIP
+  selector:
+    app: hw12-health
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

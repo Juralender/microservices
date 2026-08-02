@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hw12-health
+  labels:
+    app: hw12-health
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hw12-health
+  template:
+    metadata:
+      labels:
+        app: hw12-health
+    spec:
+      containers:
+        - name: hw12-health
+          image: jardineiro/otus:hw09
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
