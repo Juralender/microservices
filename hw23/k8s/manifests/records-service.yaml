@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: records-service-config
+  labels:
+    app: records-service
+data:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://records-db:5432/recordsdb
+  USER_HEADER_NAME: X-Username
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: records-service
+  labels:
+    app: records-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: records-service
+  template:
+    metadata:
+      labels:
+        app: records-service
+    spec:
+      containers:
+        - name: records-service
+          image: hw23-records-service
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: records-service-config
+          env:
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: records-db-credentials
+                  key: username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: records-db-credentials
+                  key: password
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: records-service
+  labels:
+    app: records-service
+spec:
+  type: ClusterIP
+  selector:
+    app: records-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

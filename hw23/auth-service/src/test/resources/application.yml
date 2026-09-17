@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:authdb-test;DB_CLOSE_DELAY=-1
+  liquibase:
+    change-log: db/changelog/db.changelog-master.yaml
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+
+jwt:
+  secret: test-secret-key-for-unit-tests-only-32bytes!
+  expiration-minutes: 60

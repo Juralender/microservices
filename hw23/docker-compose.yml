@@ -1,0 +1,71 @@
+services:
+  auth-db:
+    image: postgres:18-trixie
+    environment:
+      POSTGRES_DB: authdb
+      POSTGRES_USER: ${AUTH_DB_USER:-auth}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:-change-me}
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AUTH_DB_USER:-auth} -d authdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  records-db:
+    image: postgres:18-trixie
+    environment:
+      POSTGRES_DB: recordsdb
+      POSTGRES_USER: ${RECORDS_DB_USER:-records}
+      POSTGRES_PASSWORD: ${RECORDS_DB_PASSWORD:-change-me}
+    volumes:
+      - records_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${RECORDS_DB_USER:-records} -d recordsdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  auth-service:
+    build:
+      context: auth-service
+      target: runtime
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-db:5432/authdb
+      SPRING_DATASOURCE_USERNAME: ${AUTH_DB_USER:-auth}
+      SPRING_DATASOURCE_PASSWORD: ${AUTH_DB_PASSWORD:-change-me}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-jwt-signing-secret-please-change-me-32b}
+    depends_on:
+      auth-db:
+        condition: service_healthy
+
+  records-service:
+    build:
+      context: records-service
+      target: runtime
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://records-db:5432/recordsdb
+      SPRING_DATASOURCE_USERNAME: ${RECORDS_DB_USER:-records}
+      SPRING_DATASOURCE_PASSWORD: ${RECORDS_DB_PASSWORD:-change-me}
+    depends_on:
+      records-db:
+        condition: service_healthy
+
+  traefik:
+    image: traefik:v3.2
+    command:
+      - --configFile=/etc/traefik/traefik.yml
+    volumes:
+      - ./k8s/manifests/traefik-config/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./k8s/manifests/traefik-config/dynamic.yml:/etc/traefik/dynamic/dynamic.yml:ro
+    ports:
+      - "8080:80"
+      - "8081:8080"
+    depends_on:
+      - auth-service
+      - records-service
+
+volumes:
+  auth_db_data:
+  records_db_data:
