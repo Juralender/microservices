@@ -1,0 +1,403 @@
+{
+  "info": {
+    "name": "hw23",
+    "description": "Auth + profile scenario against the Traefik api-gateway: register -> unauthenticated access denied -> login -> edit own profile -> verify -> logout -> second user denied access to the first user's profile. All usernames/passwords/profile fields are generated at run time from Postman's dynamic variables, so re-running the collection never collides with a previous run. Every request's method/URL/body and the resulting status/body are printed to the console, so `newman run` shows full request/response data inline. Point {{baseUrl}} at your gateway (see postman/hw23.postman_environment.json) before running.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://arch.homework", "type": "string" },
+    { "key": "user1Username", "value": "", "type": "string" },
+    { "key": "user1Password", "value": "", "type": "string" },
+    { "key": "user1Id", "value": "", "type": "string" },
+    { "key": "user1DisplayName", "value": "", "type": "string" },
+    { "key": "user1Email", "value": "", "type": "string" },
+    { "key": "token1", "value": "", "type": "string" },
+    { "key": "user2Username", "value": "", "type": "string" },
+    { "key": "user2Password", "value": "", "type": "string" },
+    { "key": "user2Id", "value": "", "type": "string" },
+    { "key": "token2", "value": "", "type": "string" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Generate the two users' credentials once per run, from Postman's built-in",
+          "// dynamic variables ($randomUserName/$randomInt/$randomPassword), so every run",
+          "// uses fresh random data and never collides with a previous run's accounts.",
+          "function randomUsername() {",
+          "    const raw = pm.variables.replaceIn('{{$randomUserName}}') + pm.variables.replaceIn('{{$randomInt}}');",
+          "    return raw.replace(/[^a-zA-Z0-9_.-]/g, '').slice(0, 40);",
+          "}",
+          "",
+          "if (!pm.collectionVariables.get('user1Username')) {",
+          "    pm.collectionVariables.set('user1Username', randomUsername());",
+          "    pm.collectionVariables.set('user1Password', pm.variables.replaceIn('{{$randomPassword}}'));",
+          "}",
+          "if (!pm.collectionVariables.get('user2Username')) {",
+          "    pm.collectionVariables.set('user2Username', randomUsername());",
+          "    pm.collectionVariables.set('user2Password', pm.variables.replaceIn('{{$randomPassword}}'));",
+          "}",
+          "",
+          "console.log('--> ' + pm.info.requestName);",
+          "console.log('    ' + pm.request.method + ' ' + pm.request.url.toString());",
+          "if (pm.request.body && pm.request.body.raw) {",
+          "    console.log('    request body: ' + pm.request.body.raw);",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "console.log('    response: ' + pm.response.code + ' ' + pm.response.status);",
+          "try {",
+          "    console.log('    response body: ' + pm.response.text());",
+          "} catch (e) {",
+          "    console.log('    response body: <unavailable>');",
+          "}",
+          "console.log('');"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. User 1 Registration",
+      "item": [
+        {
+          "name": "Register User 1",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/auth/register",
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"username\": \"{{user1Username}}\",\n  \"password\": \"{{user1Password}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('username matches the generated one', () => pm.expect(body.username).to.eql(pm.collectionVariables.get('user1Username')));",
+                  "pm.collectionVariables.set('user1Id', String(body.id));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Unauthenticated Access Denied",
+      "item": [
+        {
+          "name": "Get Profile Without Login -> 401",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/users/{{user1Id}}",
+            "auth": { "type": "noauth" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status is 401', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Profile Without Login -> 401",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/users/{{user1Id}}",
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"displayName\": \"Should Not Apply\",\n  \"email\": \"nope@example.com\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status is 401', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. User 1 Login & Profile Edit",
+      "item": [
+        {
+          "name": "Login User 1",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/auth/login",
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"username\": \"{{user1Username}}\",\n  \"password\": \"{{user1Password}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('token is present', () => pm.expect(body.token).to.be.a('string').and.not.empty);",
+                  "pm.collectionVariables.set('token1', body.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Modify User 1 Profile",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/users/{{user1Id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token1}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"displayName\": \"{{user1DisplayName}}\",\n  \"email\": \"{{user1Email}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Fresh random profile data for this run, captured so the next",
+                  "// request can assert the exact same values were persisted.",
+                  "pm.collectionVariables.set('user1DisplayName', pm.variables.replaceIn('{{$randomFullName}}'));",
+                  "pm.collectionVariables.set('user1Email', pm.variables.replaceIn('{{$randomEmail}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('profile reflects the update', () => {",
+                  "    pm.expect(body.displayName).to.eql(pm.collectionVariables.get('user1DisplayName'));",
+                  "    pm.expect(body.email).to.eql(pm.collectionVariables.get('user1Email'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify User 1 Profile Updated",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/users/{{user1Id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token1}}", "type": "string" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('the random profile update persisted', () => {",
+                  "    pm.expect(body.displayName).to.eql(pm.collectionVariables.get('user1DisplayName'));",
+                  "    pm.expect(body.email).to.eql(pm.collectionVariables.get('user1Email'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout User 1",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/logout",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token1}}", "type": "string" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 204', () => pm.response.to.have.status(204));",
+                  "// JWTs are stateless here (no server-side blacklist): logout just confirms",
+                  "// the call was authenticated. The client discards its copy of the token.",
+                  "pm.collectionVariables.set('token1', '');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. User 2 Cannot Access User 1's Profile",
+      "item": [
+        {
+          "name": "Register User 2",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/auth/register",
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"username\": \"{{user2Username}}\",\n  \"password\": \"{{user2Password}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('user2Id', String(pm.response.json().id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login User 2",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/auth/login",
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"username\": \"{{user2Username}}\",\n  \"password\": \"{{user2Password}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('token2', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "User 2 Cannot Read User 1's Profile -> 403",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/users/{{user1Id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token2}}", "type": "string" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status is 403', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "User 2 Cannot Edit User 1's Profile -> 403",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/users/{{user1Id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token2}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"displayName\": \"{{$randomFullName}}\",\n  \"email\": \"{{$randomEmail}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status is 403', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "User 2 Can Read Own Profile -> 200 (sanity)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/users/{{user2Id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token2}}", "type": "string" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('own username matches', () => pm.expect(pm.response.json().username).to.eql(pm.collectionVariables.get('user2Username')));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
