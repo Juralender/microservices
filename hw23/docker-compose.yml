@@ -1,17 +1,37 @@
 services:
-  auth-db:
+  keycloak-db:
     image: postgres:18-trixie
     environment:
-      POSTGRES_DB: authdb
-      POSTGRES_USER: ${AUTH_DB_USER:-auth}
-      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:-change-me}
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: ${KEYCLOAK_DB_USER:-keycloak}
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-change-me}
     volumes:
-      - auth_db_data:/var/lib/postgresql/data
+      - keycloak_db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${AUTH_DB_USER:-auth} -d authdb"]
+      test: ["CMD-SHELL", "pg_isready -d keycloak"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-change-me}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USER:-keycloak}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-change-me}
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_ENABLED: "true"
+    volumes:
+      - ./k8s/manifests/keycloak-config/hw23-realm.json:/opt/keycloak/data/import/hw23-realm.json:ro
+    ports:
+      - "8081:8080"
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
 
   records-db:
     image: postgres:18-trixie
@@ -27,19 +47,6 @@ services:
       timeout: 5s
       retries: 10
 
-  auth-service:
-    build:
-      context: auth-service
-      target: runtime
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-db:5432/authdb
-      SPRING_DATASOURCE_USERNAME: ${AUTH_DB_USER:-auth}
-      SPRING_DATASOURCE_PASSWORD: ${AUTH_DB_PASSWORD:-change-me}
-      JWT_SECRET: ${JWT_SECRET:-dev-only-jwt-signing-secret-please-change-me-32b}
-    depends_on:
-      auth-db:
-        condition: service_healthy
-
   records-service:
     build:
       context: records-service
@@ -48,9 +55,12 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://records-db:5432/recordsdb
       SPRING_DATASOURCE_USERNAME: ${RECORDS_DB_USER:-records}
       SPRING_DATASOURCE_PASSWORD: ${RECORDS_DB_PASSWORD:-change-me}
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/hw23/protocol/openid-connect/certs
     depends_on:
       records-db:
         condition: service_healthy
+      keycloak:
+        condition: service_started
 
   traefik:
     image: traefik:v3.2
@@ -61,11 +71,11 @@ services:
       - ./k8s/manifests/traefik-config/dynamic.yml:/etc/traefik/dynamic/dynamic.yml:ro
     ports:
       - "8080:80"
-      - "8081:8080"
+      - "8082:8080"
     depends_on:
-      - auth-service
+      - keycloak
       - records-service
 
 volumes:
-  auth_db_data:
+  keycloak_db_data:
   records_db_data:

@@ -6,7 +6,7 @@ metadata:
     app: records-service
 data:
   SPRING_DATASOURCE_URL: jdbc:postgresql://records-db:5432/recordsdb
-  USER_HEADER_NAME: X-Username
+  KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/hw23/protocol/openid-connect/certs
 ---
 apiVersion: apps/v1
 kind: Deployment

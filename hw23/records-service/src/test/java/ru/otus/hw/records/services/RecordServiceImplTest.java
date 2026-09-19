@@ -26,6 +26,15 @@ class RecordServiceImplTest {
     }
 
     @Test
+    void ownerCanBeALongEmailAddress() {
+        var email = "a-rather-long-local-part.with-dots.and-more-text@some-long-subdomain.example.com";
+
+        recordService.create(email, new RecordCreateRequest("note"));
+
+        assertThat(recordService.findAllForOwner(email)).hasSize(1);
+    }
+
+    @Test
     void cannotReadAnotherOwnersRecordById() {
         var created = recordService.create("dave", new RecordCreateRequest("dave's secret"));
 

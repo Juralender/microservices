@@ -2,3 +2,6 @@ databaseChangeLog:
   - include:
       file: 001-create-records-table.yaml
       relativeToChangelogFile: true
+  - include:
+      file: 002-widen-owner-username.yaml
+      relativeToChangelogFile: true

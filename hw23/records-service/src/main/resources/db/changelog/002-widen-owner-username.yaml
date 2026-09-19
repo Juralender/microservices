@@ -1,0 +1,9 @@
+databaseChangeLog:
+  - changeSet:
+      id: 2-widen-owner-username
+      author: otus
+      changes:
+        - modifyDataType:
+            tableName: records
+            columnName: owner_username
+            newDataType: VARCHAR(255)

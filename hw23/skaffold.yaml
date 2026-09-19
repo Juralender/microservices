@@ -5,10 +5,6 @@ metadata:
 
 build:
   artifacts:
-    - image: hw23-auth-service
-      context: auth-service
-      docker:
-        target: runtime
     - image: hw23-records-service
       context: records-service
       docker:

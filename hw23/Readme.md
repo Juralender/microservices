@@ -1,29 +1,30 @@
-# hw23 — микросервисы с JWT-аутентификацией и шлюзом Traefik
+# hw23 — микросервисы с Keycloak в роли единственного identity-provider'а
 
-Три сервиса (каждый — в отдельном Docker-образе), объединенные через API-шлюз с функцией аутентификации:
+Регистрация, логин, хранение профиля и валидация токенов полностью делегированы **Keycloak**. 
+Единственный написанный Spring-сервис — `records-service` — сам проверяет
+JWT, выданный Keycloak (через `spring-boot-starter-oauth2-resource-server`),
+и не полагается на заголовки от шлюза.
 
 ```
                           ┌─────────────────────────┐
-   client  ────────────▶  │        Traefik            │   (api-gateway)
+   client  ────────────▶  │        Traefik            │   (api-gateway, чистая маршрутизация)
                           │   entryPoint :80          │
                           └────────────┬──────────────┘
                                        │
-   register / login  ── no middleware ┤
+   /realms/**, /admin/**              │
+   /resources/**       ──▶ Keycloak (регистрация, логин, Account API, JWKS)
                                        │
-   logout, /api/users/**,             │
-   /api/records/**    ── forwardAuth ─┤── calls auth-service /api/auth/validate
+   /api/records/**     ──▶ records-service (сам валидирует JWT по JWKS Keycloak)
                                        │
                           ┌────────────┴──────────────┐
                           ▼                            ▼
                ┌──────────────────┐          ┌───────────────────┐
-               │  records-service  │          │    auth-service     │
-               │  (create + read-  │          │ register/login/     │
-               │   own records)    │          │ validate + own-     │
-               │                    │          │ profile GET/PUT     │
+               │     keycloak      │          │  records-service   │
+               │  (IdP, реалм hw23)│          │ (create + read-own)│
                └─────────┬──────────┘          └─────────┬───────────┘
                          │                                │
                  ┌───────▼───────┐                ┌───────▼───────┐
-                 │  records-db    │                │   auth-db      │
+                 │  keycloak-db   │                │  records-db    │
                  │  (PostgreSQL)  │                │  (PostgreSQL)  │
                  └────────────────┘                └────────────────┘
 ```
@@ -36,20 +37,29 @@ docker compose up -d --build
 ```
 
 ```bash
-curl -s -X POST http://localhost:8080/api/auth/register \
--H 'Content-Type: application/json' \
--d '{"username":"alice","password":"s3cret!"}'
+SVC_TOKEN=$(curl -s -X POST http://localhost:8080/realms/hw23/protocol/openid-connect/token \
+  -d grant_type=client_credentials -d client_id=hw23-service \
+  -d client_secret=dev-only-service-secret-change-me \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
 
-TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
--H 'Content-Type: application/json' \
--d '{"username":"alice","password":"s3cret!"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+curl -s -X POST http://localhost:8080/admin/realms/hw23/users \
+  -H "Authorization: Bearer $SVC_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"email":"alice@example.com","enabled":true,
+       "credentials":[{"type":"password","value":"s3cret!","temporary":false}]}'
+
+TOKEN=$(curl -s -X POST http://localhost:8080/realms/hw23/protocol/openid-connect/token \
+  -d grant_type=password -d client_id=hw23-public -d username=alice@example.com -d password=s3cret! \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
 
 curl -s -X POST http://localhost:8080/api/records \
--H "Authorization: Bearer $TOKEN" \
--H 'Content-Type: application/json' \
--d '{"content":"my first note"}'
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"content":"my first note"}'
 
 curl -s http://localhost:8080/api/records -H "Authorization: Bearer $TOKEN"
+
+# профиль: свой — читается/редактируется, чужого адреса просто не существует
+curl -s http://localhost:8080/realms/hw23/account -H "Authorization: Bearer $TOKEN"
+```
 
 ## Установка API-шлюза
 
@@ -57,27 +67,19 @@ curl -s http://localhost:8080/api/records -H "Authorization: Bearer $TOKEN"
 kubectl apply -k k8s/manifests
 ```
 
+(`skaffold run`/`skaffold dev` ниже делает то же самое как часть пайплайна.)
+
 ## Развертывание в Kubernetes (minikube) с помощью Skaffold
 
 ```bash
 minikube start
-skaffold dev        # skaffold run
+skaffold dev        # или: skaffold run
 ```
-```bash
-curl -s -X POST http://localhost:8080/api/auth/register \
--H 'Content-Type: application/json' \
--d '{"username":"alice","password":"s3cret!"}'
 
-TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
--H 'Content-Type: application/json' \
--d '{"username":"alice","password":"s3cret!"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
-
-curl -s -X POST http://localhost:8080/api/records \
--H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
--d '{"content":"hello from k8s"}'
-
-curl -s http://localhost:8080/api/records -H "Authorization: Bearer $TOKEN"
-```
+Skaffold собирает образ `records-service` (единственный, который пишем
+сами), применяет Kustomize-базу из `k8s/manifests` (namespace `hw23`,
+Keycloak + его Postgres, `records-service` + его Postgres, Traefik) и
+пробрасывает шлюз на `localhost:8080`.
 
 ```bash
 skaffold delete
@@ -85,10 +87,7 @@ skaffold delete
 
 ## Тесты в Postman
 
-Файл [`postman/hw23.postman_collection.json`](postman/hw23.postman_collection.json)
-(в связке с [`postman/hw23.postman_environment.json`](postman/hw23.postman_environment.json)).
-
 ```bash
-npm install -g newman   # выполнить один раз
+npm install -g newman   # один раз
 newman run postman/hw23.postman_collection.json -e postman/hw23.postman_environment.json
 ```

@@ -14,9 +14,11 @@ spring:
     hibernate:
       ddl-auto: none
     open-in-view: false
-
-app:
-  user-header: ${USER_HEADER_NAME:X-Username}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8081/realms/hw23/protocol/openid-connect/certs}
 
 management:
   endpoints:

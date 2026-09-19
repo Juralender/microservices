@@ -6,13 +6,18 @@ namespace: hw23
 resources:
   - namespace.yaml
   - secrets.yaml
-  - auth-db.yaml
+  - keycloak.yaml
   - records-db.yaml
-  - auth-service.yaml
   - records-service.yaml
   - traefik.yaml
 
 configMapGenerator:
+  - name: keycloak-realm-config
+    files:
+      - keycloak-config/hw23-realm.json
+    options:
+      labels:
+        app: keycloak
   - name: traefik-static-config
     files:
       - traefik-config/traefik.yml
