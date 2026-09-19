@@ -1,0 +1,104 @@
+services:
+  billing-db:
+    image: postgres:18-trixie
+    environment:
+      POSTGRES_DB: billingdb
+      POSTGRES_USER: ${BILLING_DB_USER:-billing}
+      POSTGRES_PASSWORD: ${BILLING_DB_PASSWORD:-change-me}
+    volumes:
+      - billing_db_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${BILLING_DB_USER:-billing} -d billingdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  notification-db:
+    image: postgres:18-trixie
+    environment:
+      POSTGRES_DB: notificationdb
+      POSTGRES_USER: ${NOTIFICATION_DB_USER:-notification}
+      POSTGRES_PASSWORD: ${NOTIFICATION_DB_PASSWORD:-change-me}
+    volumes:
+      - notification_db_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${NOTIFICATION_DB_USER:-notification} -d notificationdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  order-db:
+    image: postgres:18-trixie
+    environment:
+      POSTGRES_DB: orderdb
+      POSTGRES_USER: ${ORDER_DB_USER:-order}
+      POSTGRES_PASSWORD: ${ORDER_DB_PASSWORD:-change-me}
+    volumes:
+      - order_db_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ORDER_DB_USER:-order} -d orderdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  billing-service:
+    build:
+      context: billing-service
+      target: runtime
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://billing-db:5432/billingdb
+      SPRING_DATASOURCE_USERNAME: ${BILLING_DB_USER:-billing}
+      SPRING_DATASOURCE_PASSWORD: ${BILLING_DB_PASSWORD:-change-me}
+    depends_on:
+      billing-db:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: notification-service
+      target: runtime
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://notification-db:5432/notificationdb
+      SPRING_DATASOURCE_USERNAME: ${NOTIFICATION_DB_USER:-notification}
+      SPRING_DATASOURCE_PASSWORD: ${NOTIFICATION_DB_PASSWORD:-change-me}
+    depends_on:
+      notification-db:
+        condition: service_healthy
+
+  order-service:
+    build:
+      context: order-service
+      target: runtime
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://order-db:5432/orderdb
+      SPRING_DATASOURCE_USERNAME: ${ORDER_DB_USER:-order}
+      SPRING_DATASOURCE_PASSWORD: ${ORDER_DB_PASSWORD:-change-me}
+      BILLING_SERVICE_URL: http://billing-service:8080
+      NOTIFICATION_SERVICE_URL: http://notification-service:8080
+    depends_on:
+      order-db:
+        condition: service_healthy
+      billing-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+
+  traefik:
+    image: traefik:v3.2
+    command:
+      - --configFile=/etc/traefik/traefik.yml
+    volumes:
+      - ./k8s/manifests/traefik-config/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./k8s/manifests/traefik-config/dynamic.yml:/etc/traefik/dynamic/dynamic.yml:ro
+    ports:
+      - "80:80"
+      - "8081:8080"
+    depends_on:
+      - billing-service
+      - notification-service
+      - order-service
+
+volumes:
+  billing_db_data:
+  notification_db_data:
+  order_db_data:

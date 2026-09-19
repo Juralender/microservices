@@ -1,0 +1,83 @@
+openapi: 3.0.3
+info:
+  title: order-service
+  version: "1.0"
+  description: >
+    Orchestrates order creation: withdraws funds via billing-service, then
+    notifies the user of the outcome via notification-service, then
+    persists the order. See docs/diagrams/01-http-only-sequence.svg for the
+    full interaction.
+servers:
+  - url: http://order-service:8080
+paths:
+  /api/orders:
+    post:
+      operationId: createOrder
+      summary: Place an order (deducts funds, then emails the outcome)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OrderCreateRequest" }
+      responses:
+        "201":
+          description: >
+            Order created. status=SUCCESS if billing-service confirmed the
+            payment, status=FAILED if funds were insufficient - either way
+            this is a 201, since the order record itself was created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderResponse" }
+        "404":
+          description: userId does not exist in billing-service
+        "502":
+          description: billing-service or notification-service call failed unexpectedly
+    get:
+      operationId: listOrdersForUser
+      summary: List a user's orders
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Orders for the user, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OrderResponse" }
+  /api/orders/{id}:
+    get:
+      operationId: getOrder
+      summary: Fetch a single order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Order found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderResponse" }
+        "404":
+          description: No such order
+components:
+  schemas:
+    OrderCreateRequest:
+      type: object
+      required: [userId, price]
+      properties:
+        userId: { type: integer, format: int64 }
+        price: { type: number, format: decimal, minimum: 0.01 }
+    OrderResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        userId: { type: integer, format: int64 }
+        price: { type: number, format: decimal }
+        status: { type: string, enum: [SUCCESS, FAILED] }
+        createdAt: { type: string, format: date-time }

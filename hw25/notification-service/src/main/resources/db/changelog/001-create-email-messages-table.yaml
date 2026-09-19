@@ -1,0 +1,40 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1-create-email-messages-table
+      author: otus
+      changes:
+        - createTable:
+            tableName: email_messages
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: recipient
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: subject
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: body
+                  type: VARCHAR(4000)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sent_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+        - createIndex:
+            indexName: idx_email_messages_recipient
+            tableName: email_messages
+            columns:
+              - column:
+                  name: recipient

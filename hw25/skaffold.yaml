@@ -1,0 +1,36 @@
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: hw25
+
+build:
+  artifacts:
+    - image: hw25-billing-service
+      context: billing-service
+      docker:
+        target: runtime
+    - image: hw25-notification-service
+      context: notification-service
+      docker:
+        target: runtime
+    - image: hw25-order-service
+      context: order-service
+      docker:
+        target: runtime
+  local:
+    push: false
+
+manifests:
+  kustomize:
+    paths:
+      - k8s/manifests
+
+deploy:
+  kubectl: {}
+
+portForward:
+  - resourceType: service
+    resourceName: traefik
+    namespace: hw25
+    port: 80
+    localPort: 80

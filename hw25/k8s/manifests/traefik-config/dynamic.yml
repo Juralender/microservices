@@ -1,0 +1,45 @@
+http:
+  routers:
+    users-route:
+      rule: "PathPrefix(`/api/users`)"
+      entryPoints:
+        - web
+      service: billing-service
+      priority: 10
+
+    accounts-route:
+      rule: "PathPrefix(`/api/accounts`)"
+      entryPoints:
+        - web
+      service: billing-service
+      priority: 10
+
+    orders-route:
+      rule: "PathPrefix(`/api/orders`)"
+      entryPoints:
+        - web
+      service: order-service
+      priority: 10
+
+    notifications-route:
+      rule: "PathPrefix(`/api/notifications`)"
+      entryPoints:
+        - web
+      service: notification-service
+      priority: 10
+
+  services:
+    billing-service:
+      loadBalancer:
+        servers:
+          - url: "http://billing-service:8080"
+
+    notification-service:
+      loadBalancer:
+        servers:
+          - url: "http://notification-service:8080"
+
+    order-service:
+      loadBalancer:
+        servers:
+          - url: "http://order-service:8080"

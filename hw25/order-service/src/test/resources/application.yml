@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:orderdb-test;DB_CLOSE_DELAY=-1
+  liquibase:
+    change-log: db/changelog/db.changelog-master.yaml
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+
+app:
+  clients:
+    billing-base-url: http://billing-service:8080
+    notification-base-url: http://notification-service:8080

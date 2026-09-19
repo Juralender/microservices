@@ -1,0 +1,139 @@
+openapi: 3.0.3
+info:
+  title: billing-service
+  version: "1.0"
+  description: >
+    Owns users and their accounts. Creating a user always creates its
+    zero-balance account in the same transaction.
+servers:
+  - url: http://billing-service:8080
+paths:
+  /api/users:
+    post:
+      operationId: createUser
+      summary: Create a user (and its billing account)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserCreateRequest" }
+      responses:
+        "201":
+          description: User (and account) created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserResponse" }
+        "409":
+          description: Username or email already taken
+  /api/users/{id}:
+    get:
+      operationId: getUser
+      summary: Fetch a user by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: User found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserResponse" }
+        "404":
+          description: No such user
+  /api/accounts/{userId}:
+    get:
+      operationId: getAccount
+      summary: Fetch the account balance for a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Current balance
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccountResponse" }
+        "404":
+          description: No such user/account
+  /api/accounts/{userId}/deposit:
+    post:
+      operationId: deposit
+      summary: Add funds to a user's account
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AmountRequest" }
+      responses:
+        "200":
+          description: Balance after the deposit
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccountResponse" }
+        "404":
+          description: No such user/account
+  /api/accounts/{userId}/withdraw:
+    post:
+      operationId: withdraw
+      summary: >
+        Deduct funds from a user's account. Insufficient funds is a normal
+        business outcome, not an error: the response is always 200, with
+        success=false and the balance left unchanged when funds are short.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AmountRequest" }
+      responses:
+        "200":
+          description: Outcome of the withdrawal attempt
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WithdrawResult" }
+        "404":
+          description: No such user/account
+components:
+  schemas:
+    UserCreateRequest:
+      type: object
+      required: [username, email]
+      properties:
+        username: { type: string, maxLength: 50 }
+        email: { type: string, format: email, maxLength: 255 }
+    UserResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        username: { type: string }
+        email: { type: string }
+        createdAt: { type: string, format: date-time }
+    AccountResponse:
+      type: object
+      properties:
+        userId: { type: integer, format: int64 }
+        balance: { type: number, format: decimal }
+    AmountRequest:
+      type: object
+      required: [amount]
+      properties:
+        amount: { type: number, format: decimal, minimum: 0.01 }
+    WithdrawResult:
+      type: object
+      properties:
+        success: { type: boolean }
+        balance: { type: number, format: decimal }
+        message: { type: string }

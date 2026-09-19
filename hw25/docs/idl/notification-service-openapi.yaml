@@ -1,0 +1,59 @@
+openapi: 3.0.3
+info:
+  title: notification-service
+  version: "1.0"
+  description: >
+    Stores outgoing email messages instead of actually sending them; a
+    stored row IS the "sent" message and is retrievable by recipient.
+servers:
+  - url: http://notification-service:8080
+paths:
+  /api/notifications/email:
+    post:
+      operationId: sendEmail
+      summary: "Send (store) an email message"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SendEmailRequest" }
+      responses:
+        "201":
+          description: Message stored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EmailMessageResponse" }
+  /api/notifications:
+    get:
+      operationId: listMessages
+      summary: List sent messages, optionally filtered by recipient
+      parameters:
+        - name: recipient
+          in: query
+          required: false
+          schema: { type: string, format: email }
+      responses:
+        "200":
+          description: Matching messages, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/EmailMessageResponse" }
+components:
+  schemas:
+    SendEmailRequest:
+      type: object
+      required: [recipient, subject, body]
+      properties:
+        recipient: { type: string, format: email }
+        subject: { type: string }
+        body: { type: string }
+    EmailMessageResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        recipient: { type: string }
+        subject: { type: string }
+        body: { type: string }
+        sentAt: { type: string, format: date-time }

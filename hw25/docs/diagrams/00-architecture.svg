@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 620" width="980" height="620" font-family="Helvetica, Arial, sans-serif">
+<rect x="0" y="0" width="980" height="620" fill="#ffffff"/>
+<text x="490.0" y="32" text-anchor="middle" font-size="19" font-weight="700" fill="#0f172a">hw25 &#8212; order / billing / notification service topology</text>
+<defs>
+<marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+<path d="M0,0 L8,3 L0,6 Z" fill="#1d4ed8"/>
+</marker>
+<marker id="arrThin" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+<path d="M0,0 L7,3 L0,6 Z" fill="#64748b"/>
+</marker>
+</defs>
+<rect x="420.0" y="55" width="140" height="42" rx="8" fill="#f1f5f9" stroke="#334155" stroke-width="1.5"/><text x="490.0" y="81.0" text-anchor="middle" font-size="13.5" font-weight="700" fill="#0f172a">Client</text>
+<rect x="360.0" y="150" width="260" height="50" rx="8" fill="#ecfeff" stroke="#0e7490" stroke-width="1.5"/><text x="490.0" y="171.0" text-anchor="middle" font-size="13.5" font-weight="700" fill="#164e63">Traefik</text><text x="490.0" y="188.0" text-anchor="middle" font-size="10.5" fill="#164e63" opacity="0.75">api-gateway (PathPrefix routing)</text>
+<line x1="490.0" y1="97" x2="490.0" y2="150" stroke="#334155" stroke-width="1.8" marker-end="url(#arr)"/>
+<rect x="70" y="260" width="200" height="56" rx="8" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/><text x="170.0" y="284.0" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1e1b4b">order-service</text><text x="170.0" y="301.0" text-anchor="middle" font-size="10.5" fill="#1e1b4b" opacity="0.75">POST/GET /api/orders</text>
+<rect x="390.0" y="260" width="200" height="56" rx="8" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/><text x="490.0" y="284.0" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1e1b4b">billing-service</text><text x="490.0" y="301.0" text-anchor="middle" font-size="10.5" fill="#1e1b4b" opacity="0.75">/api/users, /api/accounts</text>
+<rect x="710" y="260" width="200" height="56" rx="8" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/><text x="810.0" y="284.0" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1e1b4b">notification-service</text><text x="810.0" y="301.0" text-anchor="middle" font-size="10.5" fill="#1e1b4b" opacity="0.75">POST/GET /api/notifications</text>
+<line x1="400.0" y1="200" x2="170.0" y2="260" stroke="#0e7490" stroke-width="1.8" marker-end="url(#arr)"/>
+<line x1="490.0" y1="200" x2="490.0" y2="260" stroke="#0e7490" stroke-width="1.8" marker-end="url(#arr)"/>
+<line x1="580.0" y1="200" x2="810.0" y2="260" stroke="#0e7490" stroke-width="1.8" marker-end="url(#arr)"/>
+<line x1="270" y1="278" x2="390.0" y2="278" stroke="#1d4ed8" stroke-width="1.8" marker-end="url(#arr)"/><rect x="250.7" y="257.0" width="158.6" height="16" fill="#ffffff" opacity="0.9"/><text x="330.0" y="269.0" text-anchor="middle" font-size="11.5" fill="#1d4ed8" font-family="Menlo, Consolas, monospace">GET /users, POST /withdraw</text>
+<line x1="266" y1="306" x2="716" y2="350" stroke="#1d4ed8" stroke-width="1.8" marker-end="url(#arr)"/><rect x="424.8" y="324.0" width="152.5" height="16" fill="#ffffff" opacity="0.9"/><text x="501.0" y="336.0" text-anchor="middle" font-size="11.5" fill="#1d4ed8" font-family="Menlo, Consolas, monospace">POST /notifications/email</text>
+<rect x="70" y="400" width="200" height="50" rx="8" fill="#f0fdf4" stroke="#15803d" stroke-width="1.5"/><text x="170.0" y="421.0" text-anchor="middle" font-size="13.5" font-weight="700" fill="#14532d">order-db</text><text x="170.0" y="438.0" text-anchor="middle" font-size="10.5" fill="#14532d" opacity="0.75">PostgreSQL</text>
+<rect x="390.0" y="400" width="200" height="50" rx="8" fill="#f0fdf4" stroke="#15803d" stroke-width="1.5"/><text x="490.0" y="421.0" text-anchor="middle" font-size="13.5" font-weight="700" fill="#14532d">billing-db</text><text x="490.0" y="438.0" text-anchor="middle" font-size="10.5" fill="#14532d" opacity="0.75">PostgreSQL</text>
+<rect x="710" y="400" width="200" height="50" rx="8" fill="#f0fdf4" stroke="#15803d" stroke-width="1.5"/><text x="810.0" y="421.0" text-anchor="middle" font-size="13.5" font-weight="700" fill="#14532d">notification-db</text><text x="810.0" y="438.0" text-anchor="middle" font-size="10.5" fill="#14532d" opacity="0.75">PostgreSQL</text>
+<line x1="170.0" y1="316" x2="170.0" y2="400" stroke="#15803d" stroke-width="1.8" marker-end="url(#arrThin)"/>
+<line x1="490.0" y1="316" x2="490.0" y2="400" stroke="#15803d" stroke-width="1.8" marker-end="url(#arrThin)"/>
+<line x1="810.0" y1="316" x2="810.0" y2="400" stroke="#15803d" stroke-width="1.8" marker-end="url(#arrThin)"/>
+<rect x="60" y="500" width="860" height="90" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>
+<text x="80" y="524" font-size="12.5" font-weight="700" fill="#0f172a">Legend</text>
+<line x1="80" y1="542" x2="130" y2="542" stroke="#334155" stroke-width="1.8" marker-end="url(#arr)"/>
+<text x="140" y="546" font-size="11.5" fill="#334155">client &#8594; gateway</text>
+<line x1="300" y1="542" x2="350" y2="542" stroke="#0e7490" stroke-width="1.8" marker-end="url(#arr)"/>
+<text x="360" y="546" font-size="11.5" fill="#0e7490">gateway &#8594; service (PathPrefix route)</text>
+<line x1="80" y1="568" x2="130" y2="568" stroke="#1d4ed8" stroke-width="1.8" marker-end="url(#arr)"/>
+<text x="140" y="572" font-size="11.5" fill="#1d4ed8">service &#8594; service (synchronous REST call)</text>
+<line x1="560" y1="568" x2="610" y2="568" stroke="#15803d" stroke-width="1.8" marker-end="url(#arrThin)"/>
+<text x="620" y="572" font-size="11.5" fill="#15803d">service &#8594; its own database (JDBC)</text>
+</svg>

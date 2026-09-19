@@ -1,0 +1,79 @@
+asyncapi: 3.0.0
+info:
+  title: hw25 event-collaboration events
+  version: "1.0"
+defaultContentType: application/json
+
+servers:
+  broker:
+    host: broker:5672
+    protocol: amqp
+
+channels:
+  order.created:
+    address: order.created
+    description: >
+      Published by order-service right after it persists a PENDING order.
+      Consumed by billing-service, which reacts by attempting the withdrawal.
+    messages:
+      OrderCreated:
+        $ref: "#/components/messages/OrderCreated"
+
+  payment.succeeded:
+    address: payment.succeeded
+    description: >
+      Published by billing-service after a successful withdrawal. Consumed
+      independently by order-service (to mark the order SUCCESS) and by
+      notification-service (to send the success email).
+    messages:
+      PaymentResult:
+        $ref: "#/components/messages/PaymentResult"
+
+  payment.failed:
+    address: payment.failed
+    description: >
+      Published by billing-service when the withdrawal fails for
+      insufficient funds. Consumed independently by order-service (to mark
+      the order FAILED) and by notification-service (to send the failure
+      email).
+    messages:
+      PaymentResult:
+        $ref: "#/components/messages/PaymentResult"
+
+operations:
+  publishOrderCreated:
+    action: send
+    channel: { $ref: "#/channels/order.created" }
+  consumeOrderCreated:
+    action: receive
+    channel: { $ref: "#/channels/order.created" }
+  publishPaymentSucceeded:
+    action: send
+    channel: { $ref: "#/channels/payment.succeeded" }
+  publishPaymentFailed:
+    action: send
+    channel: { $ref: "#/channels/payment.failed" }
+  consumePaymentResult:
+    action: receive
+    channel: { $ref: "#/channels/payment.succeeded" }
+
+components:
+  messages:
+    OrderCreated:
+      payload:
+        type: object
+        required: [orderId, userId, price]
+        properties:
+          orderId: { type: integer, format: int64 }
+          userId: { type: integer, format: int64 }
+          price: { type: number, format: decimal }
+    PaymentResult:
+      payload:
+        type: object
+        required: [orderId, userId, recipientEmail, balance]
+        properties:
+          orderId: { type: integer, format: int64 }
+          userId: { type: integer, format: int64 }
+          recipientEmail: { type: string, format: email }
+          balance: { type: number, format: decimal }
+          message: { type: string }
