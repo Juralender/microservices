@@ -1,0 +1,28 @@
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: hw23
+
+build:
+  artifacts:
+    - image: hw23-records-service
+      context: records-service
+      docker:
+        target: runtime
+  local:
+    push: false
+
+manifests:
+  kustomize:
+    paths:
+      - k8s/manifests
+
+deploy:
+  kubectl: {}
+
+portForward:
+  - resourceType: service
+    resourceName: traefik
+    namespace: hw23
+    port: 80
+    localPort: 8080

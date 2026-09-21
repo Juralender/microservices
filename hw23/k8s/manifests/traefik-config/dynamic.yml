@@ -1,0 +1,26 @@
+http:
+  routers:
+    keycloak:
+      rule: "PathPrefix(`/realms`) || PathPrefix(`/admin`) || PathPrefix(`/resources`)"
+      entryPoints:
+        - web
+      service: keycloak
+      priority: 10
+
+    records:
+      rule: "PathPrefix(`/api/records`)"
+      entryPoints:
+        - web
+      service: records-service
+      priority: 10
+
+  services:
+    keycloak:
+      loadBalancer:
+        servers:
+          - url: "http://keycloak:8080"
+
+    records-service:
+      loadBalancer:
+        servers:
+          - url: "http://records-service:8080"

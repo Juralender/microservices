@@ -1,0 +1,460 @@
+{
+  "info": {
+    "name": "hw23",
+    "description": "Auth + profile scenario against Keycloak directly (no custom auth-service). Users register and log in with just an email and a password (registrationEmailAsUsername is on, firstName/lastName are optional). Flow: register via the Admin API -> unauthenticated access denied -> login -> add firstName/lastName to own account -> verify -> logout -> second user registered/logged in and shown to only ever see their own account, never the first user's. Registration uses the 'hw23-service' client (client_credentials grant, scoped to manage-users only - not a full admin). Profile read/write uses Keycloak's own Account REST API (/realms/hw23/account), which is inherently self-only: there is no id-addressable endpoint for another user's profile to even attempt to hit, so cross-user isolation is structural, not just a 403 check.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://arch.homework", "type": "string" },
+    { "key": "publicClientId", "value": "hw23-public", "type": "string" },
+    { "key": "serviceClientId", "value": "hw23-service", "type": "string" },
+    { "key": "serviceClientSecret", "value": "dev-only-service-secret-change-me", "type": "string" },
+    { "key": "serviceToken", "value": "", "type": "string" },
+    { "key": "user1Email", "value": "", "type": "string" },
+    { "key": "user1Password", "value": "", "type": "string" },
+    { "key": "user1Id", "value": "", "type": "string" },
+    { "key": "user1FirstName", "value": "", "type": "string" },
+    { "key": "user1LastName", "value": "", "type": "string" },
+    { "key": "token1", "value": "", "type": "string" },
+    { "key": "refreshToken1", "value": "", "type": "string" },
+    { "key": "user2Email", "value": "", "type": "string" },
+    { "key": "user2Password", "value": "", "type": "string" },
+    { "key": "token2", "value": "", "type": "string" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "function randomEmail() {",
+          "    return pm.variables.replaceIn('{{$randomEmail}}').toLowerCase().replace(/[^a-z0-9._@-]/g, '');",
+          "}",
+          "",
+          "if (!pm.collectionVariables.get('user1Email')) {",
+          "    pm.collectionVariables.set('user1Email', randomEmail());",
+          "    pm.collectionVariables.set('user1Password', pm.variables.replaceIn('{{$randomPassword}}'));",
+          "    pm.collectionVariables.set('user1FirstName', pm.variables.replaceIn('{{$randomFirstName}}'));",
+          "    pm.collectionVariables.set('user1LastName', pm.variables.replaceIn('{{$randomLastName}}'));",
+          "}",
+          "if (!pm.collectionVariables.get('user2Email')) {",
+          "    pm.collectionVariables.set('user2Email', randomEmail());",
+          "    pm.collectionVariables.set('user2Password', pm.variables.replaceIn('{{$randomPassword}}'));",
+          "}",
+          "",
+          "console.log('--> ' + pm.info.requestName);",
+          "console.log('    ' + pm.request.method + ' ' + pm.request.url.toString());",
+          "if (pm.request.body && pm.request.body.raw) {",
+          "    console.log('    request body: ' + pm.request.body.raw);",
+          "} else if (pm.request.body && pm.request.body.urlencoded) {",
+          "    console.log('    request body: ' + pm.request.body.urlencoded.toString());",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "console.log('    response: ' + pm.response.code + ' ' + pm.response.status);",
+          "try {",
+          "    console.log('    response body: ' + pm.response.text());",
+          "} catch (e) {",
+          "    console.log('    response body: <unavailable>');",
+          "}",
+          "console.log('');"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Register User 1 (Keycloak Admin API)",
+      "item": [
+        {
+          "name": "Get Service Token (User 1)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "url": "{{baseUrl}}/realms/hw23/protocol/openid-connect/token",
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "client_credentials" },
+                { "key": "client_id", "value": "{{serviceClientId}}" },
+                { "key": "client_secret", "value": "{{serviceClientSecret}}" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('serviceToken', pm.response.json().access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register User 1 (email + password only)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/admin/realms/hw23/users",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{serviceToken}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"email\": \"{{user1Email}}\",\n  \"enabled\": true,\n  \"credentials\": [\n    { \"type\": \"password\", \"value\": \"{{user1Password}}\", \"temporary\": false }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const location = pm.response.headers.get('Location');",
+                  "pm.test('Location header present', () => pm.expect(location).to.be.a('string').and.not.empty);",
+                  "pm.collectionVariables.set('user1Id', location.substring(location.lastIndexOf('/') + 1));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Unauthenticated Access Denied",
+      "item": [
+        {
+          "name": "Get Own Account Without Login -> 401",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/realms/hw23/account",
+            "auth": { "type": "noauth" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status is 401', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Own Account Without Login -> 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/realms/hw23/account",
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"firstName\": \"Should Not Apply\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status is 401', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. User 1 Login & Profile Edit",
+      "item": [
+        {
+          "name": "Login User 1 (email + password)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "url": "{{baseUrl}}/realms/hw23/protocol/openid-connect/token",
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "password" },
+                { "key": "client_id", "value": "{{publicClientId}}" },
+                { "key": "username", "value": "{{user1Email}}" },
+                { "key": "password", "value": "{{user1Password}}" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('access token is present', () => pm.expect(body.access_token).to.be.a('string').and.not.empty);",
+                  "pm.collectionVariables.set('token1', body.access_token);",
+                  "pm.collectionVariables.set('refreshToken1', body.refresh_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Own Account Before Edit (no names yet)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/realms/hw23/account",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token1}}", "type": "string" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('email is the identity, names are empty', () => {",
+                  "    pm.expect(body.email).to.eql(pm.collectionVariables.get('user1Email'));",
+                  "    pm.expect(body.firstName).to.not.be.ok;",
+                  "    pm.expect(body.lastName).to.not.be.ok;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Modify Own Account (add firstName/lastName)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/realms/hw23/account",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token1}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"email\": \"{{user1Email}}\",\n  \"firstName\": \"{{user1FirstName}}\",\n  \"lastName\": \"{{user1LastName}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200 or 204', () => pm.expect(pm.response.code).to.be.oneOf([200, 204]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify Own Account Updated",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/realms/hw23/account",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token1}}", "type": "string" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('the random profile update persisted', () => {",
+                  "    pm.expect(body.email).to.eql(pm.collectionVariables.get('user1Email'));",
+                  "    pm.expect(body.firstName).to.eql(pm.collectionVariables.get('user1FirstName'));",
+                  "    pm.expect(body.lastName).to.eql(pm.collectionVariables.get('user1LastName'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout User 1",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "url": "{{baseUrl}}/realms/hw23/protocol/openid-connect/logout",
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "client_id", "value": "{{publicClientId}}" },
+                { "key": "refresh_token", "value": "{{refreshToken1}}" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200 or 204', () => pm.expect(pm.response.code).to.be.oneOf([200, 204]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. User 2 Registration & Isolation",
+      "item": [
+        {
+          "name": "Get Service Token (User 2)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "url": "{{baseUrl}}/realms/hw23/protocol/openid-connect/token",
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "client_credentials" },
+                { "key": "client_id", "value": "{{serviceClientId}}" },
+                { "key": "client_secret", "value": "{{serviceClientSecret}}" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('serviceToken', pm.response.json().access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register User 2 (email + password only)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/admin/realms/hw23/users",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{serviceToken}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"email\": \"{{user2Email}}\",\n  \"enabled\": true,\n  \"credentials\": [\n    { \"type\": \"password\", \"value\": \"{{user2Password}}\", \"temporary\": false }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status is 201', () => pm.response.to.have.status(201));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login User 2 (email + password)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+            "url": "{{baseUrl}}/realms/hw23/protocol/openid-connect/token",
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "password" },
+                { "key": "client_id", "value": "{{publicClientId}}" },
+                { "key": "username", "value": "{{user2Email}}" },
+                { "key": "password", "value": "{{user2Password}}" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('token2', pm.response.json().access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "User 2 Sees Only Their Own Account (never User 1's)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{baseUrl}}/realms/hw23/account",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{token2}}", "type": "string" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('this is User 2\\'s own account', () => pm.expect(body.email).to.eql(pm.collectionVariables.get('user2Email')));",
+                  "pm.test('never User 1\\'s account', () => {",
+                  "    pm.expect(body.email).to.not.eql(pm.collectionVariables.get('user1Email'));",
+                  "    pm.expect(body.firstName).to.not.eql(pm.collectionVariables.get('user1FirstName'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
