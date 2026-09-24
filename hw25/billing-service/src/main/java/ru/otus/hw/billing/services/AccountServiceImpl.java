@@ -29,7 +29,7 @@ public class AccountServiceImpl implements AccountService {
     @Transactional
     public AccountResponse deposit(Long userId, BigDecimal amount) {
         requirePositive(amount);
-        var account = getAccount(userId);
+        var account = getAccountForUpdate(userId);
         account.setBalance(account.getBalance().add(amount));
         account.setUpdatedAt(Instant.now());
         return toResponse(account);
@@ -39,7 +39,7 @@ public class AccountServiceImpl implements AccountService {
     @Transactional
     public WithdrawResult withdraw(Long userId, BigDecimal amount) {
         requirePositive(amount);
-        var account = getAccount(userId);
+        var account = getAccountForUpdate(userId);
 
         if (account.getBalance().compareTo(amount) < 0) {
             return new WithdrawResult(false, account.getBalance(), "Insufficient funds");
@@ -52,6 +52,11 @@ public class AccountServiceImpl implements AccountService {
 
     private Account getAccount(Long userId) {
         return accountRepository.findByUserId(userId)
+                .orElseThrow(() -> new UserNotFoundException("User with id " + userId + " not found"));
+    }
+
+    private Account getAccountForUpdate(Long userId) {
+        return accountRepository.findByUserIdForUpdate(userId)
                 .orElseThrow(() -> new UserNotFoundException("User with id " + userId + " not found"));
     }
 
