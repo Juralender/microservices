@@ -6,6 +6,7 @@ namespace: hw25
 resources:
   - namespace.yaml
   - secrets.yaml
+  - zipkin.yaml
   - billing-db.yaml
   - notification-db.yaml
   - order-db.yaml

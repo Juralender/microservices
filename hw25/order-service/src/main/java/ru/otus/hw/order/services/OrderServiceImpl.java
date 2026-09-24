@@ -1,6 +1,7 @@
 package ru.otus.hw.order.services;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.otus.hw.order.clients.BillingClient;
@@ -16,6 +17,7 @@ import ru.otus.hw.order.services.dto.OrderResponse;
 import java.time.Instant;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
@@ -27,17 +29,22 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderResponse create(OrderCreateRequest request) {
+        log.info("Creating order for user {}, price {}", request.getUserId(), request.getPrice());
+
         // Step 0: resolve the recipient address for the result email.
         var user = billingClient.getUser(request.getUserId());
 
         // Step 1: deduct funds via billing-service.
         var withdrawal = billingClient.withdraw(request.getUserId(), request.getPrice());
         var status = withdrawal.isSuccess() ? OrderStatus.SUCCESS : OrderStatus.FAILED;
+        log.info("Billing withdrawal for user {}: success={}, balance={}",
+                request.getUserId(), withdrawal.isSuccess(), withdrawal.getBalance());
 
         // Step 2: notify the user of the outcome.
         notificationClient.sendEmail(buildEmail(user.getEmail(), request, status, withdrawal.getMessage()));
 
         var order = orderRepository.save(new Order(null, request.getUserId(), request.getPrice(), status, Instant.now()));
+        log.info("Order {} for user {} completed with status {}", order.getId(), request.getUserId(), status);
         return toResponse(order);
     }
 

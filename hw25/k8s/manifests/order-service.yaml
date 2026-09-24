@@ -8,6 +8,7 @@ data:
   SPRING_DATASOURCE_URL: jdbc:postgresql://order-db:5432/orderdb
   BILLING_SERVICE_URL: http://billing-service:8080
   NOTIFICATION_SERVICE_URL: http://notification-service:8080
+  TRACING_ENABLED: "true"
 ---
 apiVersion: apps/v1
 kind: Deployment

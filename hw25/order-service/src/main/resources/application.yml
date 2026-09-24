@@ -29,3 +29,10 @@ management:
     health:
       probes:
         enabled: true
+  tracing:
+    enabled: ${TRACING_ENABLED:false}
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_ENDPOINT:http://zipkin:9411/api/v2/spans}

@@ -6,6 +6,7 @@ metadata:
     app: billing-service
 data:
   SPRING_DATASOURCE_URL: jdbc:postgresql://billing-db:5432/billingdb
+  TRACING_ENABLED: "true"
 ---
 apiVersion: apps/v1
 kind: Deployment

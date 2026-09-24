@@ -1,6 +1,7 @@
 package ru.otus.hw.notification.services;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.otus.hw.notification.models.EmailMessage;
@@ -11,6 +12,7 @@ import ru.otus.hw.notification.services.dto.SendEmailRequest;
 import java.time.Instant;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationServiceImpl implements NotificationService {
@@ -22,7 +24,9 @@ public class NotificationServiceImpl implements NotificationService {
     public EmailMessageResponse sendEmail(SendEmailRequest request) {
         var message = new EmailMessage(null, request.getRecipient(), request.getSubject(),
                 request.getBody(), Instant.now());
-        return toResponse(emailMessageRepository.save(message));
+        var saved = emailMessageRepository.save(message);
+        log.info("Recorded email {} to {} with subject '{}'", saved.getId(), saved.getRecipient(), saved.getSubject());
+        return toResponse(saved);
     }
 
     @Override

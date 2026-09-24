@@ -14,12 +14,12 @@ public class AppConfig {
     private final ClientProperties clientProperties;
 
     @Bean
-    public BillingClient billingClient() {
-        return new BillingClient(RestClient.create(clientProperties.getBillingBaseUrl()));
+    public BillingClient billingClient(RestClient.Builder restClientBuilder) {
+        return new BillingClient(restClientBuilder.baseUrl(clientProperties.getBillingBaseUrl()).build());
     }
 
     @Bean
-    public NotificationClient notificationClient() {
-        return new NotificationClient(RestClient.create(clientProperties.getNotificationBaseUrl()));
+    public NotificationClient notificationClient(RestClient.Builder restClientBuilder) {
+        return new NotificationClient(restClientBuilder.baseUrl(clientProperties.getNotificationBaseUrl()).build());
     }
 }

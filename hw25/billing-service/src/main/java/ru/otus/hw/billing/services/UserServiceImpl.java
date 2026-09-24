@@ -1,6 +1,7 @@
 package ru.otus.hw.billing.services;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.otus.hw.billing.exceptions.UserAlreadyExistsException;
@@ -15,6 +16,7 @@ import ru.otus.hw.billing.services.dto.UserResponse;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
@@ -36,6 +38,7 @@ public class UserServiceImpl implements UserService {
         var user = userRepository.save(new User(null, request.getUsername(), request.getEmail(), now));
 
         accountRepository.save(new Account(null, user.getId(), BigDecimal.ZERO, now, now));
+        log.info("Created user {} ({}) with a zero-balance account", user.getId(), user.getUsername());
 
         return toResponse(user);
     }

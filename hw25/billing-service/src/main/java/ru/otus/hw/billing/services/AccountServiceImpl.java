@@ -1,6 +1,7 @@
 package ru.otus.hw.billing.services;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.otus.hw.billing.exceptions.InvalidAmountException;
@@ -13,6 +14,7 @@ import ru.otus.hw.billing.services.dto.WithdrawResult;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AccountServiceImpl implements AccountService {
@@ -32,6 +34,7 @@ public class AccountServiceImpl implements AccountService {
         var account = getAccountForUpdate(userId);
         account.setBalance(account.getBalance().add(amount));
         account.setUpdatedAt(Instant.now());
+        log.info("Deposited {} into account of user {}, new balance {}", amount, userId, account.getBalance());
         return toResponse(account);
     }
 
@@ -42,11 +45,14 @@ public class AccountServiceImpl implements AccountService {
         var account = getAccountForUpdate(userId);
 
         if (account.getBalance().compareTo(amount) < 0) {
+            log.warn("Withdrawal of {} for user {} rejected: insufficient funds (balance {})",
+                    amount, userId, account.getBalance());
             return new WithdrawResult(false, account.getBalance(), "Insufficient funds");
         }
 
         account.setBalance(account.getBalance().subtract(amount));
         account.setUpdatedAt(Instant.now());
+        log.info("Withdrew {} from account of user {}, new balance {}", amount, userId, account.getBalance());
         return new WithdrawResult(true, account.getBalance(), "Withdrawal successful");
     }
 

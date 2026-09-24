@@ -1,4 +1,9 @@
 services:
+  zipkin:
+    image: openzipkin/zipkin:latest
+    ports:
+      - "9411:9411"
+
   billing-db:
     image: postgres:18-trixie
     environment:
@@ -49,9 +54,12 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://billing-db:5432/billingdb
       SPRING_DATASOURCE_USERNAME: ${BILLING_DB_USER:-billing}
       SPRING_DATASOURCE_PASSWORD: ${BILLING_DB_PASSWORD:-change-me}
+      TRACING_ENABLED: ${TRACING_ENABLED:-true}
     depends_on:
       billing-db:
         condition: service_healthy
+      zipkin:
+        condition: service_started
 
   notification-service:
     build:
@@ -61,9 +69,12 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://notification-db:5432/notificationdb
       SPRING_DATASOURCE_USERNAME: ${NOTIFICATION_DB_USER:-notification}
       SPRING_DATASOURCE_PASSWORD: ${NOTIFICATION_DB_PASSWORD:-change-me}
+      TRACING_ENABLED: ${TRACING_ENABLED:-true}
     depends_on:
       notification-db:
         condition: service_healthy
+      zipkin:
+        condition: service_started
 
   order-service:
     build:
@@ -75,12 +86,15 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${ORDER_DB_PASSWORD:-change-me}
       BILLING_SERVICE_URL: http://billing-service:8080
       NOTIFICATION_SERVICE_URL: http://notification-service:8080
+      TRACING_ENABLED: ${TRACING_ENABLED:-true}
     depends_on:
       order-db:
         condition: service_healthy
       billing-service:
         condition: service_started
       notification-service:
+        condition: service_started
+      zipkin:
         condition: service_started
 
   traefik:

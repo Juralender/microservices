@@ -34,3 +34,8 @@ portForward:
     namespace: hw25
     port: 80
     localPort: 80
+  - resourceType: service
+    resourceName: zipkin
+    namespace: hw25
+    port: 9411
+    localPort: 9411
