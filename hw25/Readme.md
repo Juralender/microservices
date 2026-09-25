@@ -46,11 +46,10 @@ docker compose down
 
 ```bash
 minikube start
-eval $(minikube -p <profile> docker-env) 
+eval $(minikube -p <profile> docker-env)
 docker compose build
-for img in hw25-billing-service hw25-notification-service hw25-order-service;
-``` do
-minikube image load "$img:latest"
+for img in hw25-billing-service hw25-notification-service hw25-order-service; do
+  minikube image load "$img:latest"
 done
 
 kubectl apply -k k8s/manifests
@@ -74,15 +73,54 @@ curl -s -X POST http://arch.homework/api/orders \
 ```
 
 ```bash
-skaffold delete            # или: kubectl delete -k k8s/manifests
+skaffold delete            # or: kubectl delete -k k8s/manifests
 ```
+
+## Логирование и трассировка
+
+Каждый сервис логирует ключевые бизнес-события (создание пользователя, пополнение/снятие средств,
+отправка email, этапы обработки заказа) и поддерживает распределенную трассировку с помощью
+Micrometer Tracing (Brave) с экспортом данных в Zipkin. На уровне кода трассировка по умолчанию
+**отключена**; она активируется переменной окружения `TRACING_ENABLED=true` —
+эта переменная уже задана в `docker-compose.yml` и в ConfigMap каждого сервиса
+(в директории `k8s/manifests`), поэтому трассировка работает «из коробки» при запуске
+через Compose или Kubernetes.
+
+```bash
+# Docker Compose: интерфейс Zipkin
+open http://localhost:9411
+
+# Kubernetes
+kubectl -n hw25 port-forward svc/zipkin 9411:9411
+open http://localhost:9411
+```
+
+После оформления заказа в Zipkin можно найти трассировку, охватывающую все три сервиса
+(order-service → billing-service → notification-service) и объединенную одним
+идентификатором `traceId`. При включенной трассировке логи каждого сервиса
+(например, `docker compose logs -f order-service`) также содержат `traceId` и `spanId`.
+
+## Тесты Postman / Newman
+
+Файл [`postman/hw25.postman_collection.json`](postman/hw25.postman_collection.json)
+(совместно с [`postman/hw25.postman_environment.json`](postman/hw25.postman_environment.json),
+где `{{baseUrl}}` по умолчанию имеет значение `http://arch.homework`) выполняет полный сценарий:
+создание пользователя → пополнение счета →
+оформление заказа при достаточном балансе → оформление заказа при недостаточном балансе.
+Имя пользователя и email генерируются случайным образом при каждом запуске,
+поэтому тесты можно запускать повторно на одной и той же базе данных.
 
 ```bash
 npm install -g newman
 newman run postman/hw25.postman_collection.json -e postman/hw25.postman_environment.json
 ```
 
+Метод, URL и тело каждого запроса, а также полученный статус и тело ответа выводятся в консоль,
+благодаря чему при запуске через Newman полные данные запроса и ответа отображаются непосредственно в выводе.
+
+Для того чтобы адрес по умолчанию `{{baseUrl}}` перенаправить на другой адрес используем параметр `--env-var`:
+
 ```bash
 newman run postman/hw25.postman_collection.json -e postman/hw25.postman_environment.json \
---env-var "baseUrl=http://127.0.0.1:8090"
+  --env-var "baseUrl=http://127.0.0.1:8090"
 ```
