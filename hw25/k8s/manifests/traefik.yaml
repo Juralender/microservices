@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traefik
+  labels:
+    app: traefik
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: traefik
+  template:
+    metadata:
+      labels:
+        app: traefik
+    spec:
+      containers:
+        - name: traefik
+          image: traefik:v3.2
+          imagePullPolicy: IfNotPresent
+          args:
+            - --configFile=/etc/traefik/traefik.yml
+          ports:
+            - name: web
+              containerPort: 80
+            - name: dashboard
+              containerPort: 8080
+          volumeMounts:
+            - name: static-config
+              mountPath: /etc/traefik
+            - name: dynamic-config
+              mountPath: /etc/traefik/dynamic
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: dashboard
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: dashboard
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: static-config
+          configMap:
+            name: traefik-static-config
+        - name: dynamic-config
+          configMap:
+            name: traefik-dynamic-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik
+  labels:
+    app: traefik
+spec:
+  type: NodePort
+  selector:
+    app: traefik
+  ports:
+    - name: web
+      port: 80
+      targetPort: web
+      nodePort: 30025
+    - name: dashboard
+      port: 8080
+      targetPort: dashboard
+      nodePort: 30826

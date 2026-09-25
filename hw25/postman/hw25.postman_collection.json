@@ -1,0 +1,307 @@
+{
+  "info": {
+    "name": "hw25",
+    "description": "Order/billing/notification scenario against the Traefik api-gateway: create a user (which creates its billing account) -> deposit funds -> place an order with sufficient funds (payment succeeds, balance drops, success email recorded) -> place an order with insufficient funds (payment fails, balance unchanged, failure email recorded). Username/email are generated at run time from Postman's dynamic variables, so re-running the collection never collides with a previous run. Every request's method/URL/body and the resulting status/body are printed to the console, so `newman run` shows full request/response data inline. Point {{baseUrl}} at your gateway (see postman/hw25.postman_environment.json) before running.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://arch.homework", "type": "string" },
+    { "key": "username", "value": "", "type": "string" },
+    { "key": "email", "value": "", "type": "string" },
+    { "key": "userId", "value": "", "type": "string" },
+    { "key": "orderId1", "value": "", "type": "string" },
+    { "key": "orderId2", "value": "", "type": "string" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Generate this run's username/email once, from Postman's built-in dynamic",
+          "// variables, so every run uses fresh data and never collides with a",
+          "// previous run's user.",
+          "function randomUsername() {",
+          "    const raw = pm.variables.replaceIn('{{$randomUserName}}') + pm.variables.replaceIn('{{$randomInt}}');",
+          "    return raw.replace(/[^a-zA-Z0-9_.-]/g, '').slice(0, 40);",
+          "}",
+          "",
+          "if (!pm.collectionVariables.get('username')) {",
+          "    pm.collectionVariables.set('username', randomUsername());",
+          "    pm.collectionVariables.set('email', pm.variables.replaceIn('{{$randomEmail}}'));",
+          "}",
+          "",
+          "console.log('--> ' + pm.info.requestName);",
+          "console.log('    ' + pm.request.method + ' ' + pm.request.url.toString());",
+          "if (pm.request.body && pm.request.body.raw) {",
+          "    console.log('    request body: ' + pm.request.body.raw);",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "console.log('    response: ' + pm.response.code + ' ' + pm.response.status);",
+          "try {",
+          "    console.log('    response body: ' + pm.response.text());",
+          "} catch (e) {",
+          "    console.log('    response body: <unavailable>');",
+          "}",
+          "console.log('');"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Create User (billing account is created too)",
+      "item": [
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/users",
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"email\": \"{{email}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('username matches the generated one', () => pm.expect(body.username).to.eql(pm.collectionVariables.get('username')));",
+                  "pm.test('email matches the generated one', () => pm.expect(body.email).to.eql(pm.collectionVariables.get('email')));",
+                  "pm.collectionVariables.set('userId', String(body.id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify Account Was Created With Zero Balance",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/accounts/{{userId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('balance starts at 0', () => pm.expect(Number(body.balance)).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Add Funds To The Account",
+      "item": [
+        {
+          "name": "Deposit 1000",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/accounts/{{userId}}/deposit",
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"amount\": 1000\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('balance is 1000 after deposit', () => pm.expect(Number(body.balance)).to.eql(1000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Order With Sufficient Funds",
+      "item": [
+        {
+          "name": "Place Order For 300",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/orders",
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"userId\": {{userId}},\n  \"price\": 300\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('order succeeded', () => pm.expect(body.status).to.eql('SUCCESS'));",
+                  "pm.collectionVariables.set('orderId1', String(body.id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check Balance Was Deducted To 700",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/accounts/{{userId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('balance is 700 after the 300 order', () => pm.expect(Number(body.balance)).to.eql(700));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check Notification Service Recorded The Success Email",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications?recipient={{email}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications"],
+              "query": [{ "key": "recipient", "value": "{{email}}" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('exactly one message was sent so far', () => pm.expect(body).to.have.lengthOf(1));",
+                  "pm.test('the message is addressed to this user and reports success', () => {",
+                  "    pm.expect(body[0].recipient).to.eql(pm.collectionVariables.get('email'));",
+                  "    pm.expect(body[0].subject.toLowerCase()).to.include('succeeded');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Order With Insufficient Funds",
+      "item": [
+        {
+          "name": "Place Order For 999999",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/orders",
+            "body": {
+              "mode": "raw",
+              "options": { "raw": { "language": "json" } },
+              "raw": "{\n  \"userId\": {{userId}},\n  \"price\": 999999\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('order failed', () => pm.expect(body.status).to.eql('FAILED'));",
+                  "pm.collectionVariables.set('orderId2', String(body.id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check Balance Is Unchanged At 700",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/accounts/{{userId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('balance is still 700', () => pm.expect(Number(body.balance)).to.eql(700));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check Notification Service Recorded The Failure Email",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications?recipient={{email}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications"],
+              "query": [{ "key": "recipient", "value": "{{email}}" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('two messages were sent in total', () => pm.expect(body).to.have.lengthOf(2));",
+                  "pm.test('the newest message is addressed to this user and reports failure', () => {",
+                  "    const bySentAtDesc = [...body].sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt));",
+                  "    pm.expect(bySentAtDesc[0].recipient).to.eql(pm.collectionVariables.get('email'));",
+                  "    pm.expect(bySentAtDesc[0].subject.toLowerCase()).to.include('failed');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

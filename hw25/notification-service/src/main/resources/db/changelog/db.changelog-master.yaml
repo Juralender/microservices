@@ -1,0 +1,4 @@
+databaseChangeLog:
+  - include:
+      file: 001-create-email-messages-table.yaml
+      relativeToChangelogFile: true

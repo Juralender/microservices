@@ -1,0 +1,43 @@
+asyncapi: 3.0.0
+info:
+  title: hw25 notification events
+  version: "1.0"
+defaultContentType: application/json
+
+servers:
+  broker:
+    host: broker:5672
+    protocol: amqp
+
+channels:
+  order.processed:
+    address: order.processed
+    description: >
+      Published by order-service once an order has been persisted (either
+      SUCCESS or FAILED). Consumed by notification-service to send the
+      outcome email, decoupled from the client's HTTP response.
+    messages:
+      OrderProcessed:
+        $ref: "#/components/messages/OrderProcessed"
+
+operations:
+  publishOrderProcessed:
+    action: send
+    channel: { $ref: "#/channels/order.processed" }
+  consumeOrderProcessed:
+    action: receive
+    channel: { $ref: "#/channels/order.processed" }
+
+components:
+  messages:
+    OrderProcessed:
+      payload:
+        type: object
+        required: [orderId, userId, recipientEmail, price, status]
+        properties:
+          orderId: { type: integer, format: int64 }
+          userId: { type: integer, format: int64 }
+          recipientEmail: { type: string, format: email }
+          price: { type: number, format: decimal }
+          status: { type: string, enum: [SUCCESS, FAILED] }
+          billingMessage: { type: string }
